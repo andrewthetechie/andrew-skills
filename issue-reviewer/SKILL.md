@@ -1,6 +1,6 @@
 ---
 name: issue-reviewer
-description: Issue-readiness review for decomposed issue drafts: check context-free completeness for a starved implementer and grounded PRD/repo accuracy. Use when the user asks whether issue drafts or a decomposition are ready for implementation or safe to hand to a small/local coding model.
+description: Issue-readiness review for decomposed issue drafts - check context-free completeness for a starved implementer and grounded PRD/repo accuracy. Use when the user asks whether issue drafts or a decomposition are ready for implementation or safe to hand to a small/local coding model.
 ---
 
 # Issue Reviewer
