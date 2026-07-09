@@ -1,5 +1,5 @@
 ---
-name: code-review
+name: strict-code-review
 description: Run an extremely strict maintainability review for abstraction quality, structural simplification, giant files, and spaghetti-condition growth. Use for a thermo-nuclear code quality review, thermonuclear review, deep code quality audit, harsh maintainability review, or review since a base commit/branch with aggressive architecture scrutiny.
 disable-model-invocation: false
 ---

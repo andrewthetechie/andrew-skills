@@ -1,4 +1,4 @@
-# Thermo-Nuclear Review Rubric
+# Strict Code Review Rubric
 
 Use this reference when performing the maintainability axis of a review.
 
