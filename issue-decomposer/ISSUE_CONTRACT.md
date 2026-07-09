@@ -2,6 +2,29 @@
 
 Use this reference whenever the skill drafts or reviews issues. The goal is a self-contained handoff that a smaller coding model can implement without the PRD, conversation, or hidden project knowledge.
 
+## Work Graph
+
+Shape the graph before writing full drafts. The normal unit is a **tracer bullet**: a narrow but complete path through every affected layer (for example, data, API, UI, and tests) that delivers a demoable or independently verifiable behavior. Do not split ordinary work into horizontal layers such as "add the schema", "add the API", and "add the UI".
+
+Every ordinary tracer-bullet draft must:
+
+- fit in one fresh implementation context;
+- state the end-to-end outcome it delivers, rather than a layer-by-layer to-do list;
+- leave the repository buildable, testable, and coherent when it lands; and
+- name only the drafts that genuinely **block** it. A draft with no blockers is on the **frontier** and can start immediately.
+
+**Prefactoring** comes first only when it removes a concrete obstacle to the requested behavior. Make it a separate draft, name the obstacle in its Context Pack, and keep the prefactor independently valid and verifiable.
+
+### Wide-refactor exception
+
+A wide refactor is one mechanical change with blast radius across many call sites—such as renaming a shared column or retyping a foundational symbol—where no ordinary vertical slice can land green. Do not pretend it is a tracer bullet. Decompose it as **expand–contract**:
+
+1. **Expand:** add the new form beside the old form so existing callers remain valid.
+2. **Migrate:** move callers in batches sized by blast radius (for example, one package or directory per draft). Each batch is blocked by Expand and remains valid because the old form still exists.
+3. **Contract:** remove the old form only after every migrate draft completes; it is blocked by all of them.
+
+If even migration batches cannot remain green alone, declare an integration branch in every affected draft. Keep the sequence, state the branch and validator scope in the draft, and add a final **Integrate and verify** draft blocked by all batches. That final draft is the only place green is promised. This is an exception to the normal valid-state rule, not a reason to weaken it elsewhere.
+
 ## Small-Model Handoff Standard
 Each issue must answer these questions directly:
 
@@ -32,6 +55,9 @@ Each final issue must use this structure:
 ```md
 # [Concise, action-oriented title]
 
+## Tracer-Bullet Outcome
+[The narrow end-to-end behavior this draft makes work, stated from the user's or operator's perspective. For a prefactor, state the concrete obstacle it removes.]
+
 ## User Story
 As a [persona], I want [capability] so that [benefit].
 
@@ -40,8 +66,12 @@ As a [persona], I want [capability] so that [benefit].
 
 ## Context Pack
 - Source decisions: [decisions/defaults from the PRD or grilling that this issue relies on]
-- Repo facts: [paths, existing analogs, current behavior, naming conventions]
+- Repo facts: [paths, existing analogs, current behavior, naming conventions, applicable domain terms/ADRs]
 - Non-goals: [explicit exclusions to prevent scope drift]
+
+## Delivery Strategy
+- Shape: [Normal tracer bullet | Prefactor | Wide refactor: Expand | Wide refactor: Migrate | Wide refactor: Contract | Wide refactor: Integrate and verify]
+- Valid-state scope: [Default branch after this draft | Named integration branch until the final integration draft]
 
 ## Implementation Contract
 - Expected files: [exact paths, intended new paths, or precise path patterns]
@@ -58,6 +88,7 @@ As a [persona], I want [capability] so that [benefit].
 
 ## Dependencies
 - Blocked by: [issue title or "None"]
+- Why blocked: [the exact artifact, decision, or state each blocker supplies; "N/A" when unblocked]
 - Blocks: [issue title or "None"]
 
 ## Labels
@@ -115,6 +146,8 @@ Read the issue as an implementer who has ONLY this issue text. Produce the liter
 - Acceptance criteria are observable and deterministic, each tied to a pasted contract.
 - Test expectations name the test runner/framework (not just a command) and include location, behavior under test, ≥1 concrete literal input, and its expected literal output.
 - The issue ends at a valid repo state and does not depend on a later issue to restore build/test/migration/runtime validity.
+- The draft has a narrow, complete outcome—not a horizontal layer task—and its blocking edges are genuine gates. Any exception uses the declared wide-refactor delivery strategy, including its validator scope.
 - A reviewer can state exactly what is out of scope.
 
 If a check cannot be made to pass without inventing an unverified contract, stop and ask one clarifying question, or scope a verification step into the issue, instead of finalizing.
+

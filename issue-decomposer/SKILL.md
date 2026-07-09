@@ -1,12 +1,11 @@
 ---
 name: issue-decomposer
-description: Decomposes PRDs, conversation context, and feature descriptions into small, implementation-ready issue drafts that can be worked from the issue alone by small or local coding LLMs. Use when the user asks to break down a PRD, convert requirements into issues, decompose a feature, or grill requirements before planning implementation work.
+description: Decomposes PRDs, conversation context, and feature descriptions into small, tracer-bullet issue drafts that a context-starved coding model can implement alone. Use when the user asks to break down a PRD, convert requirements into issues, decompose a feature, or grill requirements before planning implementation work.
 ---
 
 # Issue Decomposer
 
-## Quick Start
-Use this skill to turn a PRD or planning conversation into workable issue drafts. The output is decomposition only: do not create issues in an issue tracker, implement code, open pull requests, or edit project files unless the user explicitly asks for a separate follow-up task.
+Turn a PRD, planning conversation, or feature description into a reviewed graph of self-contained implementation drafts. This skill drafts only: it does not create tracker issues, implement code, open pull requests, or edit project files.
 
 Start by stating:
 
@@ -14,82 +13,76 @@ Start by stating:
 DECOMPOSER LOOP STATE: Read Source
 ```
 
-If the PRD, conversation summary, or feature description is missing or empty, stop and ask for it.
+If the source is missing or empty, ask for it.
 
-## Workflow
-State the current loop state before each major action:
+Before drafting any issue, read and apply [ISSUE_CONTRACT.md](ISSUE_CONTRACT.md). It is the single source of truth for tracer-bullet shape, issue format, codebase artifacts, wide refactors, and the final quality gate.
+
+## Process
+
+State the current loop state before each phase:
 
 ```text
-DECOMPOSER LOOP STATE: [Read Source | Grill | Summarize Decisions | Inspect Context | Decompose | Tighten Drafts | Review Proposed Issues | Finalize Drafts | Complete]
+DECOMPOSER LOOP STATE: [Read Source | Grill | Record Decisions | Ground Context | Shape Graph | Tighten Drafts | Quiz Graph | Finalize Drafts | Complete]
 ```
 
-1. **Read Source**: Identify goals, users, constraints, requirements, non-goals, and success criteria.
-2. **Grill**: Ask one clarifying question at a time. Reference the source, explain why the answer matters, and suggest a default when reasonable.
-3. **Summarize Decisions**: Restate resolved decisions, accepted defaults, rejected alternatives, and remaining assumptions. Get confirmation before decomposing when decisions affect scope.
-4. **Inspect Context**: If a repo or code context is available, inspect local docs, file structure, tests, and nearby analogs enough to name realistic integration points.
-5. **Decompose**: Break the work into small, issue-only-context drafts with dependencies, risks, expected files, tests, and validator stopping points.
-6. **Tighten Drafts**: Rewrite every draft until it contains enough local context and explicit contracts for a smaller model to implement it without reading the PRD or making product/design decisions. Run the context-free reread: read each issue as an implementer who has ONLY this issue text (no PRD, no conversation, no ability to browse beyond what the issue quotes). List every symbol, type, signature, integration contract, or literal value the issue NAMES but does not SHOW. Each such item must be pasted in (or the issue marked blocked pending verification) before the draft is done. You hold the hidden context, so you cannot feel this gap unless you deliberately simulate the starved reader.
-7. **Review Proposed Issues**: Present the proposed issue graph and ask the user to approve it or request splits/merges before finalizing.
-8. **Finalize Drafts**: Produce polished issue drafts in text form only.
-9. **Complete**: Summarize issue count, dependency graph, parallel work opportunities, and unresolved items.
+### 1. Read Source
 
-## Grilling Rules
-Do not skip grilling. Probe vague words like "simple", "basic", "support", "integration", "works", and "end-to-end". Challenge missing acceptance criteria, undefined users, data ownership, migration needs, validation behavior, error handling, rollout, permissions, observability, and test strategy.
+Read the full available source, including a referenced PRD, issue, or discussion. Identify users, outcomes, constraints, non-goals, success criteria, decisions already made, and questions that would change the work.
 
-Ask only one question per turn during grilling. Stop asking when remaining uncertainty can be handled as explicit assumptions without making the issue drafts unsafe or misleading.
+Done when known facts, safe assumptions, and material gaps are distinct.
 
-Ask before decomposing when the answer would otherwise force an implementer to choose an API shape, data model, file layout, environment variable, default value, validation rule, duplicate-handling rule, error contract, secret-handling behavior, migration behavior, or test seam.
+### 2. Grill
 
-## Codebase Grounding
-When a repo is available, do not decompose from requirements alone. Identify expected files using exact paths where possible. For new files, name the intended directory and filename when obvious; otherwise name the directory, naming pattern, and nearest existing analog.
+Resolve material ambiguity one question at a time. Quote or point to the relevant source, say why the answer changes the work, and offer a reasonable default when one exists. Probe vague promises such as "simple", "support", "integration", "works", and "end-to-end", along with ownership, migrations, permissions, errors, rollout, observability, and tests.
 
-Every implementation issue should include at least one expected file, directory, or path pattern. Do not use placeholders like `src/...` or "find the right file". If paths cannot be inferred, ask a clarifying question or mark the issue as blocked by context discovery.
+Ask before an answer would otherwise make the implementer choose a product or design contract: an API or data shape, default, validation or duplicate rule, environment/configuration value, migration, security behavior, error contract, file boundary, or test seam. Stop when every remaining uncertainty can be recorded as a non-misleading assumption.
 
-### Paste artifacts, do not point at them
-A path or a symbol name is a pointer, not specificity. If an issue references an existing symbol, type, function, event/message contract, config key, enum, error shape, or call site, you MUST open the defining source and paste the real signature, type definition, return shape, or exact excerpt into the issue. A smaller model cannot guess a signature correctly from its name; when you only name it, the implementer invents a shape and gets it wrong. Quote the nearest analog you tell the implementer to copy, do not just cite it.
+### 3. Record Decisions
 
-### Ground in dependencies, not just the repo
-Grounding extends to third-party and dependency APIs the work integrates with (package types, SDK option names, stream/event field names, callback shapes), not only first-party files. The riskiest contract is usually the external integration seam. Open the installed package's types/docs and paste the verified shape.
+Create a compact decision ledger: resolved decisions, adopted defaults, rejected alternatives, explicit assumptions, and unresolved blockers. Confirm it before decomposition when it changes scope or graph shape.
 
-### Never state an unverified value as fact
-Do not write a concrete literal you have not verified against source as if it were known: event-type strings, option/parameter keys, enum values, route paths, env var names, and field names are the common offenders. A confidently wrong value is worse than an open question, because the implementer will faithfully build the wrong thing and fail silently. For any contract you cannot verify against real source, mark the issue blocked pending a verification spike (or add a tiny "verify the real contract first" step inside the issue) instead of inventing a value.
+Done when no draft will silently turn an unresolved product decision into an implementation detail.
 
-## Required Issue Contract
-Before decomposing, read and apply [ISSUE_CONTRACT.md](ISSUE_CONTRACT.md). It defines the mandatory issue format, small-model handoff standard, and tightening quality gate. Do not skip it, and do not finalize drafts until every issue passes that gate.
+### 4. Ground Context
 
-## Issue Draft Format
-Each issue draft must follow the full format in [ISSUE_CONTRACT.md](ISSUE_CONTRACT.md). The required sections are: User Story, Description, Context Pack, Implementation Contract, Acceptance Criteria, Test Expectations, Dependencies, Labels, Estimate, Risk, and Validator Stopping Point.
+When repository context exists, explore enough to ground the work in current reality: the relevant domain glossary and ADRs, nearby behavior and tests, file layout, real integration seams, and applicable dependency types/docs. Use the project's vocabulary in titles and drafts.
 
-## Sizing Rules
-Prefer many small issues over fewer broad ones. The issue should be scoped so it can be worked with only the issue as its context: include necessary local facts, file paths, APIs, snippets, examples, defaults, and test commands instead of relying on the implementer to rediscover intent from the PRD or conversation.
+Identify any **prefactor** that makes the change easy before the change is made. A prefactor is a separate draft only when it removes a concrete obstacle to the target slices; record that obstacle and place it first.
 
-Split an issue when it has multiple independently testable behaviors, spans distinct layers, combines scaffolding with user-facing behavior, combines schema/data changes with consumers, has more than one validation concern, likely touches more than 3 production files, requires broad discovery, or needs phrases like "end-to-end", "full workflow", "wire through", "integration", or "across the system".
+Done when every proposed draft can cite verified facts rather than inferred contracts, or is explicitly blocked on the fact it needs.
 
-Every issue must end at a valid repository state. Do not create knowingly broken stepping-stone issues where tests, builds, migrations, or runtime assumptions are fixed only by later work.
+### 5. Shape Graph
 
-## Review Checklist
-Before finalizing drafts, show a proposed issue graph with planned order, dependencies, expected files, critical contracts, sizing rationale, acceptance criteria, test expectations, validator stopping point, and any issue near the size limit.
+Build the work graph from **tracer-bullet** drafts. A tracer bullet is a narrow but complete, demoable or independently verifiable path through every affected layer; it is not a horizontal "backend first" or "UI first" task. Each ordinary draft must fit a fresh implementation context and leave the repository valid when it lands.
 
-Wait for approval or requested changes before producing final drafts.
+Give every draft its exact **Blocked by** edges. An edge exists only when its blocker genuinely gates the work; independent slices begin on the **frontier** and may run in parallel. Use the wide-refactor exception in `ISSUE_CONTRACT.md` when one mechanical change cannot stay green as ordinary tracer bullets.
 
-## Red Flags - Stop and Tighten
-These mean an issue is "named but not shown" and will produce wrong implementations:
+Done when the graph has complete delivery slices, only genuine blockers, explicit parallelism, and a valid-state strategy for every node.
 
-- References a function, type, hook, or class by name without pasting its real signature/return shape.
-- States an integration literal (event name, option/param key, enum value, route, env var, field name) you did not verify against source.
-- Says "matching the existing pattern", "see X", or "copy the convention in Y" instead of quoting the actual excerpt to copy.
-- Touches a dependency/SDK seam but quotes only repo files, never the package's real API.
-- Uses "assume", "should be", "likely", or "to be confirmed" for a contract the implementer needs to compile or integrate.
-- The Implementation Contract restates the PRD in prose instead of pasting concrete artifacts.
-- Adds a `continue`, `break`, early return, or branch but does not paste the enclosing control-flow skeleton (the loop, try/catch, or function) it must land in, so the implementer cannot know where the edit goes.
-- Consumes a symbol delivered by a sibling or not-yet-merged issue without giving its exact import path and where it comes from.
+### 6. Tighten Drafts
 
-When you hit one, paste the real artifact or mark the issue blocked pending verification. Do not finalize.
+Produce each draft in the required format and run the contract's context-free simulation. The implementer has only this issue: paste every required repository or dependency artifact, rather than naming a path, symbol, convention, or integration literal and expecting rediscovery.
 
-## Guardrails
-- Do not create issues in an issue tracker.
-- Do not implement code or edit project files as part of decomposition.
-- Do not mention or depend on project-specific external tools.
-- Do not skip the decision summary before decomposition.
-- Do not finalize drafts before the proposed issue graph is reviewed.
-- If the PRD contradicts itself, target context is unavailable, or a critical requirement cannot be defaulted safely, stop with one clarifying question.
+Done when every final-gate check in `ISSUE_CONTRACT.md` passes, or the draft is explicitly blocked pending a verification step.
+
+### 7. Quiz Graph
+
+Present the proposed graph as a numbered list. For each draft, show its title, blockers, and end-to-end outcome. Also identify the initial frontier and every intentional exception to ordinary tracer-bullet delivery.
+
+Ask whether the granularity is right, whether each blocking edge genuinely gates its draft, and whether any drafts should split or merge. Iterate until the user approves the graph.
+
+### 8. Finalize Drafts
+
+Produce polished issue drafts in dependency order, blockers first. Keep them as text; do not publish them to a tracker.
+
+### 9. Complete
+
+Summarize the issue count, approved dependency graph, initial frontier and parallel opportunities, delivery strategy for any wide refactor, and unresolved blockers.
+
+## Hard Constraints
+
+- The decision ledger precedes graph shaping, and graph approval precedes final drafts.
+- Final drafts use the full issue contract; a reference is not a substitute for the artifact an implementer must use.
+- Verified repository and dependency contracts are facts. Unknown contracts are visible verification blockers, never invented literals.
+- Drafts default to an independently valid repository state. The only exception is the explicit, staged wide-refactor strategy in the issue contract.
+
