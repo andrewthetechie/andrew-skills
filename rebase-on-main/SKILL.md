@@ -12,11 +12,13 @@ description: Safely rebase the current Git branch onto the repository's mainline
 - Always use `--force-with-lease`, never `--force`.
 - Do not rebase shared branches, protected branches, or branches with unknown ownership unless the user explicitly approves.
 - Preserve functionality from both sides when possible. Never silently drop behavior from either mainline or the feature branch.
+- Before a normal rebase or `git rebase --continue`, set `GIT_EDITOR=true`. Keep it set through the rebase so Git accepts the existing commit message instead of opening vim, nano, or another interactive editor.
 - Report what changed at the end: target branch, commits rebased, conflicts resolved, validation run, and push result.
 
 ## Quick Start
 
 ```bash
+export GIT_EDITOR=true
 bash scripts/pre-rebase-backup.sh
 git fetch origin
 git rebase origin/main
@@ -81,3 +83,4 @@ Use `origin/master` instead of `origin/main` only when master is the repository 
 - Abort an unsafe rebase with `git rebase --abort`.
 - Recover from the backup branch created by `scripts/pre-rebase-backup.sh`.
 - See [references/troubleshooting.md](references/troubleshooting.md) for repeated conflicts, bad resolutions, and force-with-lease failures.
+
