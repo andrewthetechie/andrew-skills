@@ -1,19 +1,31 @@
 # andrew-skills
 
-AI Skills
+Agent skills for engineering, issue triage, code review, and startup analysis.
 
-## code-review
+## Quickstart
 
-Thermonuclear code review skill, tweaked a bit. Reviews code since a checkpoint so give it a commit or branch to compare against
+```sh
+npx skills@latest add andrewthetechie/andrew-skills
+```
 
-## issue-decomposer
+Pick the skills you want and which coding agents to install them on.
 
-Takes a PRD or a discussion and decomposes it into issues that sandcastle can consume. Will draft and ask you questions about the issues before creating them. Make sure to tell it to create the issues before closing your session or you'll lose it. 
+## Skills
 
-## request-to-prd
+| Skill | Description |
+|-------|-------------|
+| [code-review](skills/code-review) | Thermonuclear code quality review - checks abstraction, structure, and maintainability since a given base commit or branch |
+| [fastapi-pro](skills/fastapi-pro) | Design, implement, review, and diagnose production FastAPI services with Pydantic and SQLAlchemy |
+| [issue-decomposer](skills/issue-decomposer) | Decompose PRDs and feature descriptions into implementation-ready issue drafts |
+| [issue-improver](skills/issue-improver) | Ratchet bug reports and feature requests toward implementation readiness |
+| [issue-reviewer](skills/issue-reviewer) | Check issue drafts for context-free completeness before handing to an implementer |
+| [issue-triage](skills/issue-triage) | Classify, validate, and prepare incoming issues for implementation |
+| [prd-review](skills/prd-review) | Review PRDs and technical proposals against the actual repository |
+| [rebase-on-main](skills/rebase-on-main) | Safely rebase the current branch onto main with backups and conflict analysis |
+| [request-to-prd](skills/request-to-prd) | Turn a rough bug report or feature request into a self-contained PRD draft |
+| [startup-analyst](skills/startup-analyst) | Analyze early-stage startup markets, economics, competition, and strategy |
+| [two-axis-review](skills/two-axis-review) | Review code changes along documented standards and spec/issue fit |
 
-Take a request, in the form of the text of a github issue, and take a first stab at a PRD for the issue. Does a self-driven grill loop to try to decompose the issue. The PRD should then be reviewed by a human and further researched/grilled to confirm accuracy. This is your FIRST PASS
+## License
 
-## two-axis-review
-
-Reviews a series of changes against a PRD along two axis is - correctness and long term maintainability.
+MIT
