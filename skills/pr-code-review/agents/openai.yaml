@@ -1,0 +1,4 @@
+interface:
+  display_name: "Code Review"
+  short_description: "Review a PR on standards and spec"
+  default_prompt: "Use $code-review-andrews-version to review this pull request URL."
