@@ -14,7 +14,7 @@ Usage:
     ste-lint.py --selftest
 
 Exit 1 when hard ("advisory-free") violations exceed the baseline (default 0).
-Advisory findings (passive voice, compound tenses) never fail the run.
+Contextual word, voice, and tense findings are advisory and never fail the run.
 """
 import argparse
 import json
@@ -28,13 +28,13 @@ RULES = [
     ("semicolon", "advisory-free",
      re.compile(r";"),
      "STE bans the semicolon (Rule 8.1). Split into separate sentences."),
-    ("phrasal-verb", "advisory-free",
+    ("phrasal-verb", "advisory",
      re.compile(r"\b(spin(?:ning|s)? up|spun up|reach(?:ing|es|ed)? out|div(?:e|es|ing|ed) into|dove into|kick(?:ing|s|ed)? off|circl(?:e|es|ing|ed) back|touch(?:ing|es|ed)? base|tak(?:e|es|ing|en) off|took off)\b", re.I),
      "Selected phrasal-verb pattern. Use a single plain verb when it preserves the meaning."),
-    ("marketing-adjective", "advisory-free",
+    ("marketing-adjective", "advisory",
      re.compile(r"\b(seamless(?:ly)?|robust(?:ly)?|powerful(?:ly)?|cutting-edge|effortless(?:ly)?|blazing[- ]fast|world-class|state-of-the-art|game-chang(?:ing|er))\b", re.I),
-     "Selected marketing-word pattern. Delete it, or give the measurement that supports the claim."),
-    ("nominalization", "advisory-free",
+     "Possible unsupported modifier. Keep literal technical terms; otherwise use a supported fact or remove the modifier."),
+    ("nominalization", "advisory",
      re.compile(r"\b(perform|performs|performed|conduct|conducts|conducted|carry out|carries out|carried out)\s+(?:a|an|the)\s+\w+(?:tion|sion|ment|ance|ence|ysis)\b", re.I),
      "Action frozen into a noun. Use the verb (analyze, not perform an analysis of)."),
     ("passive-voice", "advisory",
@@ -271,18 +271,53 @@ def _mask_link_destinations(text, placeholder=False):
     return "".join(characters)
 
 
-def _mask_markdown_inline(text, code_placeholder=False):
-    return _mask_link_destinations(
-        _mask_inline_code(text, placeholder=code_placeholder),
-        placeholder=code_placeholder,
+def _mask_quotations(text, placeholder=False):
+    """Mask paired quotation marks while preserving offsets and apostrophes."""
+    pairs = {'"': '"', "'": "'", "“": "”", "‘": "’"}
+    characters = list(text)
+    index = 0
+    while index < len(text):
+        closing = pairs.get(text[index])
+        if (closing is None or _is_escaped(text, index)
+                or (index > 0 and (text[index - 1].isalnum()
+                                  or text[index - 1] == "_"))):
+            index += 1
+            continue
+        end = text.find(closing, index + 1)
+        while end >= 0:
+            if (not _is_escaped(text, end)
+                    and (end + 1 == len(text)
+                         or not (text[end + 1].isalnum()
+                                 or text[end + 1] == "_"))):
+                break
+            end = text.find(closing, end + 1)
+        if end < 0:
+            index += 1
+            continue
+        _mask_range(characters, index, end + 1)
+        if placeholder:
+            characters[index] = "X"
+        index = end + 1
+    return "".join(characters)
+
+
+def _mask_markdown_inline(text, placeholder=False):
+    masked = _mask_link_destinations(
+        _mask_inline_code(text, placeholder=placeholder),
+        placeholder=placeholder,
     )
+    return _mask_quotations(masked, placeholder=placeholder)
 
 
-def _trimmed_masked_fragment(text):
-    masked = _mask_markdown_inline(text)
-    left = len(masked) - len(masked.lstrip())
-    right = len(masked.rstrip())
-    return masked[left:right], left
+def _word_count(text):
+    # Masking can leave commas or periods separated from their protected span.
+    # Count the span's placeholder once and ignore detached punctuation.
+    return sum(bool(re.search(r"\w", word)) for word in text.split())
+
+
+def _trimmed_fragment(text):
+    left = len(text) - len(text.lstrip())
+    return text.strip(), left
 
 
 def _markdown_structure(lines):
@@ -423,14 +458,14 @@ def _prose_blocks(lines, table_cells, ignored_lines, list_items):
             if stripped == "---":
                 in_frontmatter = False
                 continue
-            text, left = _trimmed_masked_fragment(raw_line)
+            text, left = _trimmed_fragment(raw_line)
             if text:
                 blocks.append([(text, index + 1, left + 1)])
             continue
         if index in table_cells:
             flush()
             for cell, source_column in table_cells[index]:
-                text, left = _trimmed_masked_fragment(cell)
+                text, left = _trimmed_fragment(cell)
                 if text:
                     blocks.append([(text, index + 1,
                                     source_column + left + 1)])
@@ -446,7 +481,7 @@ def _prose_blocks(lines, table_cells, ignored_lines, list_items):
         heading = HEADING.match(content)
         if heading:
             flush()
-            text, left = _trimmed_masked_fragment(heading.group("body"))
+            text, left = _trimmed_fragment(heading.group("body"))
             if text:
                 blocks.append([(text, index + 1,
                                 quote_offset + heading.start("body")
@@ -456,13 +491,13 @@ def _prose_blocks(lines, table_cells, ignored_lines, list_items):
         list_item = list_items.get(index)
         if list_item is not None:
             flush()
-            text, left = _trimmed_masked_fragment(list_item["body"])
+            text, left = _trimmed_fragment(list_item["body"])
             if text:
                 current.append((text, index + 1,
                                 list_item["body_start"] + left + 1))
             continue
 
-        text, left = _trimmed_masked_fragment(content)
+        text, left = _trimmed_fragment(content)
         if text:
             current.append((text, index + 1,
                             quote_offset + left + 1))
@@ -492,12 +527,12 @@ def _sentence_boundaries(block):
     return boundaries
 
 
-def _long_sentence_findings(lines, table_cells, filename, max_words,
-                            ignored_lines, list_items):
+def _long_sentence_findings(blocks, filename, max_words):
     findings = []
-    for fragments in _prose_blocks(
-            lines, table_cells, ignored_lines, list_items):
-        block = " ".join(text for text, _, _ in fragments)
+    for fragments in blocks:
+        block = _mask_markdown_inline(
+            " ".join(text for text, _, _ in fragments), placeholder=True
+        )
         sentence_start = 0
         boundaries = _sentence_boundaries(block)
         for boundary in boundaries + [None]:
@@ -506,7 +541,7 @@ def _long_sentence_findings(lines, table_cells, filename, max_words,
             leading = len(sentence) - len(sentence.lstrip())
             stripped = sentence.strip()
             if stripped:
-                word_count = len(stripped.split())
+                word_count = _word_count(stripped)
                 if word_count > max_words:
                     offset = sentence_start + leading
                     line, column = _source_position(fragments, offset)
@@ -537,7 +572,7 @@ def _dangling_conjunction_findings(lines, filename, ignored_lines,
     findings = []
     for index, item in sorted(list_items.items()):
         body = _mask_markdown_inline(
-            item["body"], code_placeholder=True
+            item["body"], placeholder=True
         )
         item_lines = [(index, body, item["body_start"] + 1)]
         next_index = index + 1
@@ -559,7 +594,7 @@ def _dangling_conjunction_findings(lines, filename, ignored_lines,
                     or indent < item["content_indent"]):
                 break
             masked = _mask_markdown_inline(
-                candidate, code_placeholder=True
+                candidate, placeholder=True
             )
             left = len(masked) - len(masked.lstrip())
             item_lines.append((next_index, masked.strip(),
@@ -603,33 +638,35 @@ def lint(text, filename="<stdin>", max_words=DEFAULT_MAX_WORDS):
     table_cells = _markdown_table_cells(lines)
     fenced_lines, indented_code_lines, list_items = _markdown_structure(lines)
     ignored_lines = fenced_lines | indented_code_lines
+    blocks = _prose_blocks(lines, table_cells, ignored_lines, list_items)
     # first occurrence of each synonym-group member: (group_idx, base) -> (line, col, match)
     seen_synonyms = {}
-    for lineno, raw_line in enumerate(lines, 1):
-        if lineno - 1 in ignored_lines:
-            continue
-        segments = table_cells.get(lineno - 1, [(raw_line, 0)])
-        for segment, source_column in segments:
-            line = _mask_markdown_inline(segment)
-            words_total += len(line.split())
-            for rule_id, level, pattern, msg in RULES:
-                for m in pattern.finditer(line):
-                    if (rule_id == "present-perfect"
-                            and _is_protected_modal_perfect(line, m.start())):
-                        continue
-                    findings.append({"file": filename, "line": lineno,
-                                     "col": source_column + m.start() + 1,
-                                     "rule": rule_id, "level": level,
-                                     "match": m.group(0), "message": msg})
-            for gi, group in enumerate(SYNONYM_GROUPS):
-                for base in group:
-                    if (gi, base) in seen_synonyms:
-                        continue
-                    m = _word_re(base).search(line)
-                    if m:
-                        seen_synonyms[(gi, base)] = (
-                            lineno, source_column + m.start() + 1, m.group(0)
-                        )
+    for fragments in blocks:
+        block = " ".join(text for text, _, _ in fragments)
+        prose = _mask_markdown_inline(block)
+        words_total += _word_count(
+            _mask_markdown_inline(block, placeholder=True)
+        )
+        for rule_id, level, pattern, msg in RULES:
+            for match in pattern.finditer(prose):
+                if (rule_id == "present-perfect"
+                        and _is_protected_modal_perfect(prose, match.start())):
+                    continue
+                lineno, column = _source_position(fragments, match.start())
+                findings.append({"file": filename, "line": lineno,
+                                 "col": column, "rule": rule_id,
+                                 "level": level, "match": match.group(0),
+                                 "message": msg})
+        for gi, group in enumerate(SYNONYM_GROUPS):
+            for base in group:
+                if (gi, base) in seen_synonyms:
+                    continue
+                match = _word_re(base).search(prose)
+                if match:
+                    lineno, column = _source_position(fragments, match.start())
+                    seen_synonyms[(gi, base)] = (
+                        lineno, column, match.group(0)
+                    )
     # synonym rotation: flag each member after the first, at its first occurrence
     for gi, group in enumerate(SYNONYM_GROUPS):
         present = [(seen_synonyms[(gi, b)], b) for b in group if (gi, b) in seen_synonyms]
@@ -642,7 +679,7 @@ def lint(text, filename="<stdin>", max_words=DEFAULT_MAX_WORDS):
                                  "match": match,
                                  "message": f"'{base}' and '{first_base}' may name the same action. Check the context, then use one term for one action."})
     findings.extend(_long_sentence_findings(
-        lines, table_cells, filename, max_words, ignored_lines, list_items
+        blocks, filename, max_words
     ))
     findings.extend(_dangling_conjunction_findings(
         lines, filename, ignored_lines, list_items
@@ -661,7 +698,7 @@ def report(findings, words_total, as_json, hard_count, baseline, max_words):
         return
     for f in findings:
         print(f"{f['file']}:{f['line']}:{f['col']} {f['rule']}: {f['message']} [{f['match']}]")
-    print(f"\n{len(findings)} violations ({hard_count} hard, baseline {baseline}), "
+    print(f"\n{len(findings)} findings ({hard_count} hard, baseline {baseline}), "
           f"{words_total} words, cap {max_words}, {rate} per 100 words")
     print("Modal perfect forms are not tense findings: confidence is content.")
 
@@ -950,3 +987,4 @@ def main(argv):
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))
+
