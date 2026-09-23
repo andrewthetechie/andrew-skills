@@ -16,6 +16,7 @@ Pick the skills you want and which coding agents to install them on.
 |-------|-------------|
 | [code-review](skills/code-review) | Thermonuclear code quality review - checks abstraction, structure, and maintainability since a given base commit or branch |
 | [fastapi-pro](skills/fastapi-pro) | Design, implement, review, and diagnose production FastAPI services with Pydantic and SQLAlchemy |
+| [industry-standardize](skills/industry-standardize) | Use to review a codebase, proposal, or new feature where home-grown machinery should be replaced with something more industry standard. (Experimental) |
 | [issue-decomposer](skills/issue-decomposer) | Decompose PRDs and feature descriptions into implementation-ready issue drafts |
 | [issue-triage-loop](skills/issue-triage-loop) | Classify, validate, and prepare incoming issues for implementation |
 | [martin-clean-code](skills/martin-clean-code) | Analyze code with Robert C. Martin's Clean Code concepts. (Experimental)Classify, validate, and prepare incoming issues for implementation | 
