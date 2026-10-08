@@ -24,15 +24,22 @@ The command prints one compact manifest. Keep the large artifacts out of the par
 
 - `diff` — the changes in the pull request.
 - `commits` — every pull-request commit.
+- `checks` contains the captured PR check names, states, categories (`bucket`), and links.
 - `spec` — the title and description of every issue in GitHub's closing relationship.
 
 When `closing_issue_count` is positive, that `spec` artifact is the complete spec. When it is zero, use the legacy spec lookup below.
 
 For any other argument, preserve the fixed-point flow:
 
-Whatever the user said is the fixed point — a commit SHA, branch name, tag, `main`, `HEAD~5`, etc. If they didn't specify one, ask for it.
+Use the user's requested commit, branch, tag, or revision expression. If they omitted the fixed point, ask for it.
 
-Capture `git diff <fixed-point>...HEAD` and `git log <fixed-point>..HEAD --oneline`. Confirm the fixed point resolves and the diff is non-empty before continuing.
+Run `git fetch origin` before resolving the ref. If the fetch fails, stop and report the error.
+
+For an unqualified branch name `<name>`, prefer `origin/<name>` when `git show-ref --verify --quiet refs/remotes/origin/<name>` succeeds. For example, resolve `main` through `origin/main` when available. Preserve explicit refs, commit SHAs, tags, and revision expressions such as `HEAD~5`.
+
+Resolve the selected ref with `git rev-parse --verify '<ref>^{commit}'`. Use that commit SHA as `<fixed-point>` in both captures: `git diff <fixed-point>...HEAD` and `git log <fixed-point>..HEAD --oneline`. Confirm that the ref resolves and the diff is non-empty before continuing.
+
+Compare the commit list and `git diff <fixed-point>...HEAD --stat` with the user's expected commit count and described scope. If either is much larger than described, stop before spawning sub-agents and report the discrepancy. If the user gave no expected size, inspect the commit subjects and changed paths for unrelated work.
 
 Legacy spec lookup:
 
@@ -43,7 +50,7 @@ Legacy spec lookup:
 
 Run `/setup-matt-pocock-skills` if the legacy lookup needs `docs/agents/issue-tracker.md` and it is missing.
 
-This step is complete when the exact diff is frozen and the spec source is identified or explicitly absent.
+Complete this step after you freeze the verified diff and identify the spec source or record its absence.
 
 ### 2. Identify the standards sources
 
@@ -57,10 +64,17 @@ This step is complete when every applicable standards-source path is listed.
 
 Give both sub-agents the frozen diff artifact path, or the fixed-point diff command, plus the commit-list path or command. They must inspect the artifacts themselves.
 
+For a PR review, also give both sub-agents the `checks` artifact path.
+
+Include these instructions in both sub-agent prompts:
+
+- When available, read the `checks` artifact before reporting. Report every failing check (`bucket: fail`) as a finding on the axis it concerns. Include the check's name, state, and link.
+- You may run the focused test files touched by the diff against the reviewed revision. Run them when the result can settle a finding. Report the exact command and result. If you cannot run a relevant test, report the command and blocker.
+
 Standards prompt:
 
 - Include every standards-source path and the absolute path to `references/smell-baseline.md`.
-- Brief: "Report by file/hunk: (a) every documented-standard violation, citing the standards file and rule; (b) every baseline smell, naming it and quoting the hunk. Separate hard violations from judgement calls. Repository standards override the baseline. Skip checks enforced by tooling. Under 400 words."
+- Brief: "Read every listed standards file in full before you report. In your report, name any file you did not read in full. Report by file/hunk: (a) every documented-standard violation, citing the standards file and rule; (b) every baseline smell, naming it and quoting the hunk. Separate hard violations from judgement calls. Repository standards override the baseline. Read each existing helper, fixture, or function before recommending its use or reuse. Quote its signature or body as evidence supporting the finding. Base claims about its behaviour on its code. Use captured check results for rules enforced by tooling. Under 400 words."
 
 Spec prompt:
 
@@ -69,7 +83,7 @@ Spec prompt:
 
 If the spec is missing, skip the Spec sub-agent and note this in the final report.
 
-This step is complete when each applicable axis returns a report grounded in the same frozen diff.
+Complete this step after each applicable axis reports on the frozen diff, failing checks, and test commands, results, or blockers.
 
 ### 4. Aggregate
 
@@ -80,3 +94,4 @@ End with one line containing each axis's finding count and worst issue, if any. 
 ## Why two axes
 
 A standards-compliant change can implement the wrong thing; a spec-compliant change can violate repository conventions. Separation keeps either axis from masking the other.
+

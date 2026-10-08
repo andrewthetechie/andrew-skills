@@ -10,6 +10,35 @@ cat >"$test_dir/bin/gh" <<'MOCK_GH'
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ ${1:-} == pr && ${2:-} == checks ]]; then
+  [[ $# -eq 7 && $3 == 42 && $4 == --repo &&
+    $5 == github.com/acme/widgets && $6 == --json &&
+    $7 == name,state,bucket,link ]] || exit 72
+  case ${MOCK_CHECKS:-fail} in
+    fail)
+      printf '%s\n' '[{"name":"Focused tests","state":"FAILURE","bucket":"fail","link":"https://github.com/acme/widgets/actions/runs/123/job/456"},{"name":"Lint","state":"SUCCESS","bucket":"pass","link":"https://github.com/acme/widgets/actions/runs/123/job/789"}]'
+      ;;
+    pending)
+      printf '%s\n' '[{"name":"Focused tests","state":"IN_PROGRESS","bucket":"pending","link":"https://github.com/acme/widgets/actions/runs/123/job/456"}]'
+      ;;
+    none)
+      printf "no checks reported on the 'factory' branch\n" >&2
+      exit 1
+      ;;
+    error)
+      printf 'HTTP 403: forbidden\n' >&2
+      exit 1
+      ;;
+    malformed)
+      printf '%s\n' '{}'
+      ;;
+    empty)
+      ;;
+    *) exit 73 ;;
+  esac
+  exit 0
+fi
+
 [[ ${1:-} == api ]] || exit 70
 shift
 
@@ -47,8 +76,18 @@ jq -e '
   .base.oid == "base123" and
   .head.oid == "head456" and
   .closing_issue_count == 2 and
+  (.artifacts.checks | length > 0) and
   (.context_dir | length > 0)
 ' <<<"$manifest" >/dev/null
+checks_path=$(jq -r '.artifacts.checks' <<<"$manifest")
+[[ $checks_path == "$context_dir/checks.json" ]]
+jq -e '
+  length == 2 and
+  any(.[];
+    .name == "Focused tests" and .state == "FAILURE" and .bucket == "fail" and
+    .link == "https://github.com/acme/widgets/actions/runs/123/job/456"
+  )
+' "$checks_path" >/dev/null
 rg -q '^diff --git a/a.txt b/a.txt$' "$context_dir/diff.patch"
 rg -q '^1234567890ab Implement behavior$' "$context_dir/commits.txt"
 rg -q '^## #7: First requirement$' "$context_dir/spec.md"
@@ -64,6 +103,32 @@ jq -e '.closing_issue_count == 0' <<<"$empty_manifest" >/dev/null
 rg -q '^_No closing issues are linked to this pull request\._$' \
   "$empty_context_dir/spec.md"
 
+pending_manifest=$(MOCK_CHECKS=pending TMPDIR="$test_dir/output" \
+  PATH="$test_dir/bin:$PATH" \
+  "$skill_dir/scripts/gather-pr-context.sh" \
+  'https://github.com/acme/widgets/pull/42')
+jq -e '.[0].bucket == "pending" and .[0].state == "IN_PROGRESS"' \
+  "$(jq -r '.artifacts.checks' <<<"$pending_manifest")" >/dev/null
+
+no_checks_manifest=$(MOCK_CHECKS=none TMPDIR="$test_dir/output" \
+  PATH="$test_dir/bin:$PATH" \
+  "$skill_dir/scripts/gather-pr-context.sh" \
+  'https://github.com/acme/widgets/pull/42')
+jq -e '. == []' \
+  "$(jq -r '.artifacts.checks' <<<"$no_checks_manifest")" >/dev/null
+
+for checks_mode in error malformed empty; do
+  if MOCK_CHECKS="$checks_mode" TMPDIR="$test_dir/output" \
+    PATH="$test_dir/bin:$PATH" \
+    "$skill_dir/scripts/gather-pr-context.sh" \
+    'https://github.com/acme/widgets/pull/42' \
+    >"$test_dir/failed-manifest.json" 2>"$test_dir/error.txt"; then
+    printf '%s checks unexpectedly succeeded\n' "$checks_mode" >&2
+    exit 1
+  fi
+  [[ ! -s $test_dir/failed-manifest.json ]]
+done
+
 if PATH="$test_dir/bin:$PATH" "$skill_dir/scripts/gather-pr-context.sh" \
   'https://example.com/not-a-pr' >/dev/null 2>&1; then
   printf 'invalid URL unexpectedly succeeded\n' >&2
@@ -71,3 +136,4 @@ if PATH="$test_dir/bin:$PATH" "$skill_dir/scripts/gather-pr-context.sh" \
 fi
 
 printf 'gather-pr-context tests passed\n'
+

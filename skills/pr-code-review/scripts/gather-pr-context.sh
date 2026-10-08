@@ -29,6 +29,8 @@ diff_path="$context_dir/diff.patch"
 commit_pages_path="$context_dir/commit-pages.json"
 commits_json_path="$context_dir/commits.json"
 commits_path="$context_dir/commits.txt"
+checks_path="$context_dir/checks.json"
+checks_error_path="$context_dir/checks-error.txt"
 issue_pages_path="$context_dir/closing-issue-pages.json"
 issues_path="$context_dir/closing-issues.json"
 spec_path="$context_dir/spec.md"
@@ -55,6 +57,26 @@ gh api \
 jq '[.[][]]' "$commit_pages_path" >"$commits_json_path"
 jq -r '.[] | "\(.sha[0:12]) \(.commit.message | split("\n")[0])"' \
   "$commits_json_path" >"$commits_path"
+
+# JSON export succeeds even when checks fail or remain pending.
+if ! gh pr checks "$number" \
+  --repo "$host/$owner/$repository" \
+  --json name,state,bucket,link >"$checks_path" 2>"$checks_error_path"; then
+  if [[ $(<"$checks_error_path") == "no checks reported on the "* ]]; then
+    printf '[]\n' >"$checks_path"
+  else
+    cat "$checks_error_path" >&2
+    fail 'could not collect pull request checks'
+  fi
+fi
+jq -e -s '
+  length == 1 and (.[0] | type == "array" and all(.[];
+    (.name | type == "string") and
+    (.state | type == "string") and
+    (.bucket | IN("pass", "fail", "pending", "skipping", "cancel")) and
+    (.link | type == "string")
+  ))
+' "$checks_path" >/dev/null || fail 'pull request check results are incomplete'
 
 # GraphQL variables expand on the server.
 # shellcheck disable=SC2016
@@ -113,6 +135,7 @@ jq -n \
   --arg head_oid "$(jq -r '.head.sha' "$metadata_path")" \
   --arg diff "$diff_path" \
   --arg commits "$commits_path" \
+  --arg checks "$checks_path" \
   --arg spec "$spec_path" \
   --arg issues "$issues_path" \
   --argjson closing_issue_count "$issue_count" \
@@ -131,9 +154,11 @@ jq -n \
     artifacts: {
       diff: $diff,
       commits: $commits,
+      checks: $checks,
       spec: $spec,
       closing_issues: $issues
     }
   }' >"$manifest_path"
 
 jq -c . "$manifest_path"
+
