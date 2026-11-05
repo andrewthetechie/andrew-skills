@@ -25,6 +25,7 @@ Pick the skills you want and which coding agents to install them on.
 | [request-to-prd](skills/request-to-prd) | Turn a rough bug report or feature request into a self-contained PRD draft |
 | [startup-analyst](skills/startup-analyst) | Analyze early-stage startup markets, economics, competition, and strategy |
 | [two-axis-review](skills/two-axis-review) | Review code changes along documented standards and spec/issue fit |
+| [un-rge](skills/un-rge) | Undo the "resume generating events" in a rant: turn profanity and insults into a constructive message you can share at work |
 | [unslop](skills/unlop) | My take on a skill to "unslop" your LLM writing. Tries to force ASD-STE100 |
 
 ### Depredated
